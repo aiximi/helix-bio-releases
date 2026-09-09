@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "releaseTag": "v0.3.19",
+  "installerSha256": "dd6a68a4a39e503aaa75afaf2167f1ac629f3e2900b0e7a2154f26434c8fea9c",
+  "profileTest": {
+    "repoPath": ".github/fixtures/helix-office-profile-validation.bin",
+    "sha256": "485ef66789a60620d48f205f3b90f599b1fbb5866a0b39961062ae542ffbe643"
+  }
+}

@@ -15,6 +15,10 @@ try {
   & $exe $script --output $functionOut 2>&1 | Tee-Object -FilePath (Join-Path $Out 'installed-functions-console.log')
   $report.functionalExitCode = $LASTEXITCODE
 } finally { [Environment]::SetEnvironmentVariable('ELECTRON_RUN_AS_NODE',$null,'Process') }
+$reports = @(Get-ChildItem -LiteralPath $functionOut -Recurse -File -Filter '验收结果.json')
+if ($reports.Count -ne 1) { throw 'The installed functional test did not produce exactly one result report' }
+$functionalReport = Get-Content -LiteralPath $reports[0].FullName -Raw | ConvertFrom-Json
+$report.functionalReportAccepted = $functionalReport.passed -eq $true -and $functionalReport.windowsExecutionVerified -eq $true -and $functionalReport.appVersion -eq ($ReleaseTag -replace '^v','')
 $profile = $config.profileTest
 if ($profile.repoPath -ne '.github/fixtures/helix-office-profile-validation.bin' -or $profile.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'Profile validation requires the fixed diagnostic fixture and an exact SHA-256' }
 if ((Get-FileHash -LiteralPath $profile.repoPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $profile.sha256) { throw 'Windows profile-path validation fixture SHA-256 mismatch' }
@@ -23,6 +27,6 @@ Copy-Item -LiteralPath $profile.repoPath -Destination $profileExe -Force
 & $profileExe 2>&1 | Tee-Object -FilePath (Join-Path $Out 'profile-path-validation.log')
 $report.profilePathExitCode = $LASTEXITCODE
 $report.profilePathSha256 = $profile.sha256
-$report.passed = $report.functionalExitCode -eq 0 -and $report.profilePathExitCode -eq 0
+$report.passed = $report.functionalExitCode -eq 0 -and $report.functionalReportAccepted -and $report.profilePathExitCode -eq 0
 $report | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $Out 'installed-validation.json')
 if (-not $report.passed) { throw 'Installed functional or Windows path validation failed; see the saved synthetic test reports' }
