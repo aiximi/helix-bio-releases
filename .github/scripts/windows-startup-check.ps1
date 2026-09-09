@@ -43,7 +43,7 @@ function Capture-UI([string]$Name) {
       $items += @{name=$window.Current.Name;processId=$window.Current.ProcessId;texts=@($texts | ForEach-Object {$_.Current.Name} | Where-Object {$_} | Select-Object -First 300)}
     }
   }
-  $items | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $out "$Name-ui.json")
+  ConvertTo-Json -InputObject @($items) -Depth 8 | Set-Content (Join-Path $out "$Name-ui.json")
 }
 $p = Start-Process -FilePath $installer -ArgumentList "/S /D=$install" -PassThru
 if (-not $p.WaitForExit(30000)) {
@@ -67,7 +67,11 @@ Write-Host 'Installation completed; testing ordinary desktop entry point.'
 $normal = Start-Process -FilePath $exe -PassThru
 Start-Sleep -Seconds 25
 Capture-UI 'normal-startup'
-Get-Content (Join-Path $out 'normal-startup-ui.json') | Write-Host
+$normalUiText = Get-Content (Join-Path $out 'normal-startup-ui.json') -Raw
+Write-Host $normalUiText
+$normalWindows = @($normalUiText | ConvertFrom-Json)
+$normalFailure = $normalWindows.Count -eq 0 -or $normalUiText -match '无法启动|ERR_FAILED|Error launching|Application Error|The application was unable'
+@{normalWindowPresent=$normalWindows.Count -gt 0;blockingError=$normalFailure} | ConvertTo-Json | Set-Content (Join-Path $out 'normal-acceptance.json')
 $processes = @(Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -and $_.ExecutablePath.StartsWith($install,[System.StringComparison]::OrdinalIgnoreCase)} | Select-Object ProcessId,ParentProcessId,ExecutablePath,CommandLine)
 $processes | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $out 'normal-processes.json')
 $health = @()
@@ -88,4 +92,4 @@ $diagnosticCode = $LASTEXITCODE
 Capture-UI 'observed-startup'
 Stop-InstalledApp
 Get-ChildItem $profile -Recurse -File -ErrorAction SilentlyContinue | Where-Object {$_.Name -match 'startup|diagnostic|crash|\.log$' -and $_.Length -lt 10MB} | ForEach-Object {Copy-Item $_.FullName (Join-Path $out ('app-log-' + [guid]::NewGuid().ToString('N') + '-' + $_.Name))}
-if ($diagnosticCode -ne 0) { throw "Startup acceptance failed; see uploaded diagnostic evidence ($diagnosticCode)." }
+if ($normalFailure -or $diagnosticCode -ne 0) { throw "Startup acceptance failed; see uploaded diagnostic evidence ($diagnosticCode)." }
