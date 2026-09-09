@@ -24,6 +24,7 @@ jobs:
       - name: Download, install and inspect normal startup
         shell: pwsh
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
           EXPECTED_SHA256: ${{ inputs.installer_sha256 }}
         run: ./.github/scripts/windows-startup-check.ps1
