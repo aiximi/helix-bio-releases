@@ -77,6 +77,12 @@ $p.Refresh()
 if ($p.ExitCode -ne 0) { throw "Installer exited $($p.ExitCode)" }
 $exe = Join-Path $install 'Helix Bio.exe'
 if (-not (Test-Path $exe)) { Get-ChildItem $install | Out-String | Set-Content (Join-Path $out 'installed-files.txt'); throw 'Installed normal entry point missing' }
+if (Test-Path '.github/scripts/office-ab-validation.json') {
+  $env:HELIX_TEST_POWERSHELL = (Get-Command pwsh).Source
+  & node .github/scripts/run-office-ab.cjs $install $out $env:RELEASE_TAG $actualHash
+  if ($LASTEXITCODE -ne 0) { throw 'The isolated Office A/B diagnostic did not pass; see the preserved scoped evidence.' }
+  exit 0
+}
 function Stop-InstalledApp {
   Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -and $_.ExecutablePath.StartsWith($install,[System.StringComparison]::OrdinalIgnoreCase)} | ForEach-Object {Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue}
   Start-Sleep -Seconds 2

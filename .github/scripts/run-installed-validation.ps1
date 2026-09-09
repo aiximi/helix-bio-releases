@@ -7,13 +7,15 @@ if (Test-Path '.github/scripts/office-broker-candidate.json') { throw 'Full inst
 $exe = Join-Path $Install 'Helix Bio.exe'
 $script = Join-Path $Install 'resources\docs\verify-windows-installed.cjs'
 if (-not (Test-Path -LiteralPath $script)) { throw 'Published installer is missing its built-in functional self-test' }
-$report = @{variant='original-installed-package';releaseTag=$ReleaseTag;installerSha256=$InstallerSha256;syntheticModelOnly=$true}
+$variant = if ($env:HELIX_TEST_PACKAGE_VARIANT -eq 'office-ab-candidate') { 'office-ab-candidate' } else { 'original-installed-package' }
+$report = @{variant=$variant;fullInstallerValidated=($variant -eq 'original-installed-package');releaseTag=$ReleaseTag;installerSha256=$InstallerSha256;syntheticModelOnly=$true}
 $functionOut = Join-Path $Out 'installed-functions'
 New-Item -ItemType Directory -Force $functionOut | Out-Null
 try {
   $env:ELECTRON_RUN_AS_NODE = '1'
   $nodeArguments = @()
   if ($env:HELIX_NATIVE_DIAGNOSTIC_OUT) { $nodeArguments += @('--require',(Resolve-Path '.github/scripts/office-native-preload.cjs').Path) }
+  if ($env:HELIX_TEST_SERVER_CANDIDATE) { $nodeArguments += @('--require',(Resolve-Path '.github/scripts/server-candidate-preload.cjs').Path) }
   $nodeArguments += @($script,'--output',$functionOut)
   & $exe @nodeArguments 2>&1 | Tee-Object -FilePath (Join-Path $Out 'installed-functions-console.log')
   $report.functionalExitCode = $LASTEXITCODE

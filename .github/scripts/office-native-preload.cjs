@@ -7,12 +7,21 @@ fs.mkdirSync(out,{recursive:true});
 const log=(event,data={})=>{try{fs.appendFileSync(path.join(out,'office-native.jsonl'),JSON.stringify({at:new Date().toISOString(),event,...data})+'\n');}catch{}};
 const originalSpawn=cp.spawn;
 function syntheticStage(stage){
- if(typeof stage!=='string')return false;
- const full=path.resolve(stage),root=path.resolve(os.tmpdir());
- return path.dirname(full).toLowerCase()===root.toLowerCase()&&/^hx-(?:office|calc)-[^\\/]+$/.test(path.basename(full));
+ const inspection={cwd:typeof stage==='string'?stage:null,tempRoot:os.tmpdir(),accepted:false};
+ try{
+  if(typeof stage!=='string')throw Error('Spawn cwd is not a string');
+  inspection.canonicalCwd=fs.realpathSync(stage);
+  inspection.canonicalTempRoot=fs.realpathSync(inspection.tempRoot);
+  const same=(a,b)=>process.platform==='win32'?a.toLowerCase()===b.toLowerCase():a===b;
+  if(!same(path.dirname(inspection.canonicalCwd),inspection.canonicalTempRoot))throw Error('Spawn cwd is not a direct child of the canonical temporary directory');
+  if(!/^hx-(?:office|calc)-[^\\/]+$/.test(path.basename(inspection.canonicalCwd)))throw Error('Spawn cwd is not an allowlisted synthetic Office directory');
+  if(!fs.lstatSync(inspection.canonicalCwd).isDirectory())throw Error('Spawn cwd is not a directory');
+  inspection.accepted=true;
+ }catch(error){inspection.reason=error.message;}
+ return inspection;
 }
 async function snapshotProfile(stage,pid,seconds){
- if(!syntheticStage(stage))return;
+ if(!syntheticStage(stage).accepted)return;
  const source=path.join(stage,'profile'),target=path.join(out,'profile-'+pid+'-'+seconds);let files=0,bytes=0;const errors=[];
  async function visit(dir,relative=''){
   const info=await fsp.lstat(dir);if(!info.isDirectory()||info.isSymbolicLink())return;
@@ -34,12 +43,12 @@ async function snapshotProfile(stage,pid,seconds){
 cp.spawn=function(command,args,options){
  const child=originalSpawn.apply(this,arguments);
  if(!String(command).toLowerCase().endsWith('helix-office-runner.exe'))return child;
- const stage=options?.cwd;let stdout='',stderr='';const timers=[];
- log('office-start',{pid:child.pid,command:String(command),staging:syntheticStage(stage)?stage:null});
+ const inspected=syntheticStage(options?.cwd),stage=inspected.accepted?inspected.canonicalCwd:null;let stdout='',stderr='';const timers=[];
+ log('office-start',{pid:child.pid,command:String(command),staging:stage,stagingInspection:inspected});
  child.stdout?.on('data',chunk=>{stdout=(stdout+chunk.toString()).slice(0,65536);});
  child.stderr?.on('data',chunk=>{stderr=(stderr+chunk.toString()).slice(0,65536);});
  child.on('error',error=>log('office-error',{pid:child.pid,error:error.message}));
- if(syntheticStage(stage)&&process.env.HELIX_TEST_NATIVE_OBSERVER&&process.env.HELIX_TEST_POWERSHELL){
+ if(stage&&process.env.HELIX_TEST_NATIVE_OBSERVER&&process.env.HELIX_TEST_POWERSHELL){
   for(const seconds of [15,45,110])timers.push(setTimeout(()=>{
    void snapshotProfile(stage,child.pid,seconds);
    const destination=path.join(out,'office-observation-'+child.pid+'-'+seconds+'.json');

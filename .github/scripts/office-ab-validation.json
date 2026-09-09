@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "releaseTag": "v0.3.19",
+  "installerSha256": "dd6a68a4a39e503aaa75afaf2167f1ac629f3e2900b0e7a2154f26434c8fea9c",
+  "originalBrokerSha256": "f01a7859ca04c3fc9008d3a3d5bfd743e4bf967fd36a4c2eab1a971686c36d99",
+  "unchangedHostSha256": "6520eff05aa30b34343dc8b3150ebe283654575f32dc01f371d51a3a3d25fd6f",
+  "fixture": {
+    "repoPath": ".github/fixtures/helix-calc-input.xlsx",
+    "sha256": "f8e66db3afd796567b4a6f3831e91b6611bf9e8df6887f5374a802e5358f29e5"
+  },
+  "brokers": [
+    {
+      "variant": "A",
+      "assetName": "Helix-Office-Broker-Validation-06.bin",
+      "bytes": 87552,
+      "sha256": "4c1f3395a63342f64afeda613177c965fd418d8e27423544824de71579f1b863"
+    },
+    {
+      "variant": "B",
+      "assetName": "Helix-Office-Broker-Validation-07.bin",
+      "bytes": 87552,
+      "sha256": "b7d5851e0ec6531f08226d5ea7c6a6a3c3b94e79ab6dbffac5fb7a4e037c1961"
+    }
+  ],
+  "server": {
+    "assetName": "Helix-Server-Validation-01.bin",
+    "bytes": 1232093,
+    "sha256": "523694ffdd39136686e80c7a191fafeb7d03542a781f1bf93ebb1cd6d8dae7af",
+    "originalSha256": "a7c068fe5e5f9aac96c6978e3f86564475859143321ae0cafc3278f91f0f6ea2"
+  }
+}
