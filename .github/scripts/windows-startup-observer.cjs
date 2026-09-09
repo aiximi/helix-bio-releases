@@ -92,7 +92,7 @@ async function endpoint(port,attempts=80) {
       accepted=accepted&&Boolean(click.result.value)&&Boolean(newChat.result.value)&&chatState.composer;
     }
     record('acceptance.json',{accepted,criterion:'Fresh installed app renders its UI; library and new chat open and a message composer exists. No model requests are made.',observedWithSecurityOverrides:false});
-    if(accepted){
+    if(accepted&&process.env.HELIX_TEST_MODE!=='compatibility'){
       const started=Date.now();const polls=[];let reading;
       do {try {const response=await fetch(new URL('/api/reading-capabilities',parsed.url));reading=await response.json();polls.push({at:new Date().toISOString(),...reading});if(reading.verification==='execution')break;}catch(error){polls.push({at:new Date().toISOString(),error:error.message});}await wait(5000);} while(Date.now()-started<180000);
       record('reading-capabilities.json',{ready:reading?.verification==='execution'&&reading?.ready===true,last:reading,polls});
