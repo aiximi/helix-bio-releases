@@ -1,0 +1,37 @@
+name: Windows startup check
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Public release tag to test
+        required: true
+        default: v0.3.17
+      installer_sha256:
+        description: Expected installer SHA-256 (required)
+        required: true
+        default: b67c829f415b9f0e72967d47588290facd17d5a19c5677f3d7233814f63ee11b
+permissions:
+  contents: read
+jobs:
+  startup:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download, install and inspect normal startup
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          EXPECTED_SHA256: ${{ inputs.installer_sha256 }}
+        run: ./.github/scripts/windows-startup-check.ps1
+      - name: Upload isolated diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-startup-${{ inputs.release_tag }}-${{ github.run_id }}
+          path: startup-evidence/
+          retention-days: 14
+          if-no-files-found: error
