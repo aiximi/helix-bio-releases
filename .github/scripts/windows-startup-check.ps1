@@ -77,6 +77,13 @@ function Stop-InstalledApp {
   Start-Sleep -Seconds 2
 }
 Stop-InstalledApp
+$candidateManifest = '.github/scripts/office-broker-candidate.json'
+if (Test-Path $candidateManifest) {
+  & node .github/scripts/apply-office-candidate.cjs $install $out $env:RELEASE_TAG $actualHash
+  if ($LASTEXITCODE -ne 0) { throw 'Isolated candidate broker validation or replacement failed' }
+} else {
+  @{variant='original-installed-package';releaseTag=$env:RELEASE_TAG;installerSha256=$actualHash} | ConvertTo-Json | Set-Content (Join-Path $out 'package-variant.json')
+}
 Write-Host 'Installation completed; testing ordinary desktop entry point.'
 $normal = Start-Process -FilePath $exe -PassThru
 Start-Sleep -Seconds 25
