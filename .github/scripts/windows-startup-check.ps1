@@ -16,7 +16,9 @@ if ($LASTEXITCODE -ne 0) { throw 'Installer download failed' }
 $actualHash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($actualHash -ne $env:EXPECTED_SHA256.ToLowerInvariant()) { throw 'Installer hash mismatch' }
 @{tag=$env:RELEASE_TAG;url=$url;sha256=$actualHash;size=(Get-Item $installer).Length;os=(Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,BuildNumber,OSArchitecture);cpu=(Get-CimInstance Win32_Processor | Select-Object Name,Architecture,NumberOfCores);memory=(Get-CimInstance Win32_ComputerSystem | Select-Object TotalPhysicalMemory);installDirectory=$install;nodeVersion=(& node --version)} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $out 'system.json')
-$p = Start-Process -FilePath $installer -ArgumentList "/S /D=$install" -Wait -PassThru
+$p = Start-Process -FilePath $installer -ArgumentList "/S /D=$install" -PassThru
+if (-not $p.WaitForExit(300000)) { throw "Installer did not exit within five minutes" }
+$p.Refresh()
 @{exitCode=$p.ExitCode} | ConvertTo-Json | Set-Content (Join-Path $out 'installation.json')
 if ($p.ExitCode -ne 0) { throw "Installer exited $($p.ExitCode)" }
 $exe = Join-Path $install 'Helix Bio.exe'
