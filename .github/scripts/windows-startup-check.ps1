@@ -52,7 +52,21 @@ if (-not $p.WaitForExit(30000)) {
   Write-Host $installerText
   if ($installerText -match 'requires 64-bit Windows|需要 Windows 10|需要 Windows 11|integrity check has failed|Error launching installer') { throw 'Installer displayed a blocking diagnostic; see installer-progress evidence.' }
 }
-if (-not $p.WaitForExit(270000)) { Capture-UI 'installer-timeout'; Get-CimInstance Win32_Process | Where-Object {$_.Name -match 'helix|setup'} | Select-Object Name,ProcessId,CommandLine | ConvertTo-Json | Set-Content (Join-Path $out 'installer-processes.json'); throw "Installer did not exit within five minutes" }
+$installDeadline = (Get-Date).AddMinutes(14.5)
+$installProgress = @()
+while (-not $p.WaitForExit(30000)) {
+  $p.Refresh()
+  $files = @(Get-ChildItem $install -File -Recurse -ErrorAction SilentlyContinue)
+  $snapshot = @{at=(Get-Date).ToUniversalTime().ToString('o');cpuSeconds=$p.TotalProcessorTime.TotalSeconds;memoryBytes=$p.WorkingSet64;installedFileCount=$files.Count;installedBytes=($files | Measure-Object -Property Length -Sum).Sum}
+  $installProgress += $snapshot
+  ConvertTo-Json -InputObject @($installProgress) -Depth 5 | Set-Content (Join-Path $out 'installation-progress.json')
+  Write-Host ($snapshot | ConvertTo-Json -Compress)
+  if ((Get-Date) -gt $installDeadline) {
+    Capture-UI 'installer-timeout'
+    Get-CimInstance Win32_Process | Where-Object {$_.Name -match 'helix|setup'} | Select-Object Name,ProcessId,CommandLine | ConvertTo-Json | Set-Content (Join-Path $out 'installer-processes.json')
+    throw 'Installer did not exit within fifteen minutes'
+  }
+}
 $p.Refresh()
 @{exitCode=$p.ExitCode} | ConvertTo-Json | Set-Content (Join-Path $out 'installation.json')
 if ($p.ExitCode -ne 0) { throw "Installer exited $($p.ExitCode)" }
