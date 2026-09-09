@@ -4,6 +4,8 @@
 
 ## 下载与安装
 
+> **Windows 更新正在验证中：** 0.3.17 收到 Windows 11 启动失败反馈；后续测试还发现 Office 文档转换兼容问题。建议等待下一份完整修订安装包。需要协助复测启动时，可使用 [0.3.18 启动测试版](https://github.com/aiximi/helix-bio-releases/releases/tag/v0.3.18)，其 Office 转换尚未通过验证。
+
 **[下载 Windows 安装程序 · 0.3.17 · 约 1.29 GB](https://github.com/aiximi/helix-bio-releases/releases/download/v0.3.17/Helix-Bio-0.3.17-Windows-x64-Setup.exe)**
 
 适用于标准 Windows 10 / 11，Intel 或 AMD 64 位电脑。建议预留至少 15 GB 可用磁盘空间。
@@ -24,7 +26,7 @@
 
 ## 当前验证状态
 
-本版本已完成构建回归、Windows 原生依赖与发行内容完整性检查，**Windows 实际安装和运行仍待实机验证**。
+0.3.17 已完成构建与发行内容完整性检查，并在 Windows Server 2022 中通过安装和界面启动测试。但收到的 Windows 11 设备故障尚待新版复测；文档转换正在修订，当前不能据此认定完整工作流程可用。
 
 安装后可下载 [自检工具](https://github.com/aiximi/helix-bio-releases/releases/download/v0.3.17/Helix-Bio-0.3.17-Windows-Self-Test.zip)，解压后双击“安装后双击自检.cmd”。工具使用合成资料和独立工作区，不读取个人聊天或模型密钥。自动自检不替代真实模型连接与界面操作检查。
 
