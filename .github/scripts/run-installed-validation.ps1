@@ -16,11 +16,10 @@ try {
   $report.functionalExitCode = $LASTEXITCODE
 } finally { [Environment]::SetEnvironmentVariable('ELECTRON_RUN_AS_NODE',$null,'Process') }
 $profile = $config.profileTest
-if ($profile.assetName -notmatch '^Helix-Office-Profile-Validation-[0-9]{2}\.bin$' -or $profile.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'Profile validation requires an exact asset and SHA-256' }
+if ($profile.repoPath -ne '.github/fixtures/helix-office-profile-validation.bin' -or $profile.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'Profile validation requires the fixed diagnostic fixture and an exact SHA-256' }
+if ((Get-FileHash -LiteralPath $profile.repoPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $profile.sha256) { throw 'Windows profile-path validation fixture SHA-256 mismatch' }
 $profileExe = Join-Path $env:RUNNER_TEMP 'helix-office-profile-validation.exe'
-& curl.exe -fL --retry 3 --output $profileExe "https://github.com/aiximi/helix-bio-releases/releases/download/$ReleaseTag/$($profile.assetName)"
-if ($LASTEXITCODE -ne 0) { throw 'Windows profile-path validation asset could not be downloaded' }
-if ((Get-FileHash -LiteralPath $profileExe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $profile.sha256) { throw 'Windows profile-path validation asset SHA-256 mismatch' }
+Copy-Item -LiteralPath $profile.repoPath -Destination $profileExe -Force
 & $profileExe 2>&1 | Tee-Object -FilePath (Join-Path $Out 'profile-path-validation.log')
 $report.profilePathExitCode = $LASTEXITCODE
 $report.profilePathSha256 = $profile.sha256
