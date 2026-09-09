@@ -94,7 +94,7 @@ Capture-UI 'normal-startup'
 $normalUiText = Get-Content (Join-Path $out 'normal-startup-ui.json') -Raw
 Write-Host $normalUiText
 $normalWindows = @($normalUiText | ConvertFrom-Json)
-$normalFailure = $normalWindows.Count -eq 0 -or $normalUiText -match '无法启动|暂时无法打开|启动遇到问题|ERR_FAILED|Error launching|Application Error|The application was unable'
+$normalFailure = $normalWindows.Count -eq 0 -or $normalUiText -match '无法启动|暂时无法打开|启动遇到问题|ERR_FAILED|Error launching|Application Error|The application was unable|Fatal Error|application cannot be started|User installation could not'
 @{normalWindowPresent=$normalWindows.Count -gt 0;blockingError=$normalFailure} | ConvertTo-Json | Set-Content (Join-Path $out 'normal-acceptance.json')
 $processes = @(Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -and $_.ExecutablePath.StartsWith($install,[System.StringComparison]::OrdinalIgnoreCase)} | Select-Object ProcessId,ParentProcessId,ExecutablePath,CommandLine)
 $processes | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $out 'normal-processes.json')
@@ -130,5 +130,11 @@ if ([version]($version -replace '-.*','') -ge [version]'0.3.18') {
   $env:HELIX_TEST_OUT = $out
   [Environment]::SetEnvironmentVariable('HELIX_TEST_MODE',$null,'Process')
 }
+$functionalFailure = $false
+if (Test-Path '.github/scripts/installed-validation.json') {
+  try { & .github/scripts/run-installed-validation.ps1 -Install $install -Out $out -ReleaseTag $env:RELEASE_TAG -InstallerSha256 $actualHash }
+  catch { $functionalFailure = $true; $_.Exception.Message | Set-Content (Join-Path $out 'installed-validation-error.txt'); Write-Host $_.Exception.Message }
+  Stop-InstalledApp
+}
 Get-ChildItem $profile -Recurse -File -ErrorAction SilentlyContinue | Where-Object {$_.Name -match 'startup|diagnostic|crash|\.log$' -and $_.Length -lt 10MB} | ForEach-Object {Copy-Item $_.FullName (Join-Path $out ('app-log-' + [guid]::NewGuid().ToString('N') + '-' + $_.Name))}
-if ($normalFailure -or $diagnosticCode -ne 0 -or $compatibilityCode -ne 0) { throw "Startup acceptance failed; see uploaded diagnostic evidence ($diagnosticCode)." }
+if ($normalFailure -or $diagnosticCode -ne 0 -or $compatibilityCode -ne 0 -or $functionalFailure) { throw "Startup acceptance failed; see uploaded diagnostic evidence ($diagnosticCode)." }
