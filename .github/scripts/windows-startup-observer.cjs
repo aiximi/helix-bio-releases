@@ -26,7 +26,28 @@ async function endpoint(port,attempts=80) {
   for(let i=0;i<attempts;i++){try{const response=await fetch('http://127.0.0.1:'+port+'/json/list');if(response.ok){const targets=await response.json();if(targets.length)return targets;}}catch{}await wait(250);}
   throw new Error('No inspector targets on port '+port);
 }
-(async()=>{
+async function readCapabilities(baseUrl,{timeoutMs=480000,intervalMs=5000}={}) {
+  const base=new URL(baseUrl);
+  if(base.protocol!=='http:'||base.hostname!=='127.0.0.1')throw new Error('Reading validation requires the isolated local app origin');
+  const sessionResponse=await fetch(new URL('/api/session',base),{signal:AbortSignal.timeout(5000)});
+  if(!sessionResponse.ok)throw new Error('Validation session request failed (HTTP '+sessionResponse.status+')');
+  const session=await sessionResponse.json();
+  if(typeof session.token!=='string'||!session.token)throw new Error('Validation session response did not contain a token');
+  // The disposable workspace token stays in memory and is never written to evidence.
+  const headers={'x-helix-token':session.token};
+  const deadline=Date.now()+timeoutMs;const polls=[];let reading;
+  do {
+    const response=await fetch(new URL('/api/reading-capabilities',base),{headers,signal:AbortSignal.timeout(Math.max(1,Math.min(5000,deadline-Date.now())))});
+    if(response.status===401||response.status===403)throw new Error('Validation authentication failed (HTTP '+response.status+'); component readiness was not evaluated');
+    if(!response.ok)throw new Error('Reading validation request failed (HTTP '+response.status+')');
+    reading=await response.json();
+    polls.push({at:new Date().toISOString(),...reading});
+    if(reading.verification==='execution')break;
+    await wait(Math.max(0,Math.min(intervalMs,deadline-Date.now())));
+  } while(Date.now()<deadline);
+  return {ready:reading?.verification==='execution'&&reading?.ready===true,last:reading,polls};
+}
+async function observe(){
   const stdout=fs.openSync(path.join(out,'observed-stdout.log'),'w');
   const stderr=fs.openSync(path.join(out,'observed-stderr.log'),'w');
   const child=spawn(exe,[...(process.env.HELIX_TEST_MODE==='compatibility'?['--helix-software-rendering']:[]),'--inspect-brk=9333','--remote-debugging-port=9222','--enable-logging','--log-file='+path.join(out,'chromium.log')],{stdio:['ignore',stdout,stderr],env:process.env});
@@ -46,18 +67,28 @@ async function endpoint(port,attempts=80) {
       const expression=`(()=>{
         const electron=require('electron');const fs=require('node:fs');const path=require('node:path');
         const target=path.join(process.env.HELIX_TEST_OUT,'main-lifecycle.jsonl');
-        const log=(event,data={})=>fs.appendFileSync(target,JSON.stringify({at:new Date().toISOString(),event,...data})+'\\n');
+        const log=(event,data={})=>{try{fs.appendFileSync(target,JSON.stringify({at:new Date().toISOString(),event,...data})+'\\n');}catch{}};
         log('observer-installed',{versions:process.versions,softwareRenderingRequested:process.argv.includes('--helix-software-rendering')});
+        const cp=require('node:child_process');const originalSpawn=cp.spawn;
+        cp.spawn=function(command,args,options){
+          const child=originalSpawn.apply(this,arguments);let stderr='';
+          log('native-process-start',{pid:child.pid,command:String(command)});
+          child.stderr?.on('data',chunk=>{if(stderr.length<16384)stderr+=chunk.toString().slice(0,16384-stderr.length);});
+          child.on('error',error=>log('native-process-error',{pid:child.pid,command:String(command),message:error.message}));
+          child.on('close',(code,signal)=>log('native-process-exit',{pid:child.pid,command:String(command),code,signal,stderr}));
+          return child;
+        };
         const original=electron.dialog.showErrorBox;
         electron.dialog.showErrorBox=function(title,content){log('showErrorBox',{title,content});return original.apply(this,arguments);};
         electron.app.on('child-process-gone',(_event,details)=>log('child-process-gone',details));
         electron.app.once('gpu-info-update',()=>{log('gpu-feature-status',electron.app.getGPUFeatureStatus());electron.app.getGPUInfo('basic').then(info=>log('gpu-info',info)).catch(error=>log('gpu-info-error',{message:error.message}));});
         electron.app.on('browser-window-created',(_event,window)=>{
+          window.once('ready-to-show',()=>log('ready-to-show'));
           const wc=window.webContents;log('browser-window-created',{id:wc.id,preferences:wc.getLastWebPreferences()});
           wc.on('render-process-gone',(_event,details)=>log('render-process-gone',details));
           wc.on('did-fail-load',(_event,errorCode,errorDescription,validatedURL,isMainFrame)=>log('did-fail-load',{errorCode,errorDescription,validatedURL,isMainFrame}));
           wc.on('did-fail-provisional-load',(_event,errorCode,errorDescription,validatedURL,isMainFrame)=>log('did-fail-provisional-load',{errorCode,errorDescription,validatedURL,isMainFrame}));
-          for(const event of ['did-start-loading','did-stop-loading','dom-ready','did-finish-load','ready-to-show','unresponsive','destroyed'])wc.on(event,()=>log(event));
+          for(const event of ['did-start-loading','did-stop-loading','dom-ready','did-finish-load','unresponsive','destroyed'])wc.on(event,()=>log(event));
           wc.on('console-message',(_event,level,message,line,sourceId)=>log('console-message',{level,message,line,sourceId}));
         });
         return 'observer-installed';
@@ -93,10 +124,15 @@ async function endpoint(port,attempts=80) {
     }
     record('acceptance.json',{accepted,criterion:'Fresh installed app renders its UI; library and new chat open and a message composer exists. No model requests are made.',observedWithSecurityOverrides:false});
     if(accepted&&process.env.HELIX_TEST_MODE!=='compatibility'){
-      const started=Date.now();const polls=[];let reading;
-      do {try {const response=await fetch(new URL('/api/reading-capabilities',parsed.url));reading=await response.json();polls.push({at:new Date().toISOString(),...reading});if(reading.verification==='execution')break;}catch(error){polls.push({at:new Date().toISOString(),error:error.message});}await wait(5000);} while(Date.now()-started<180000);
-      record('reading-capabilities.json',{ready:reading?.verification==='execution'&&reading?.ready===true,last:reading,polls});
-      if(!(reading?.verification==='execution'&&reading?.ready===true))process.exitCode=2;
+      try {
+        const reading=await readCapabilities(parsed.url);
+        record('reading-capabilities.json',reading);
+        console.log('Reading component verification: '+JSON.stringify(reading.last));
+        if(!reading.ready)process.exitCode=2;
+      } catch(error) {
+        record('reading-capabilities.json',{ready:false,validationError:error.message});
+        process.exitCode=2;
+      }
     }
     renderer.close();
     if(!accepted)process.exitCode=1;
@@ -104,4 +140,6 @@ async function endpoint(port,attempts=80) {
   finally {record('observer-events.json',events);main?.close();}
   // PowerShell captures the actual desktop and error dialogs before ending this isolated app process.
   setTimeout(()=>process.exit(process.exitCode||0),500);
-})().catch(error=>{record('fatal-error.json',{message:error.message,stack:error.stack});process.exit(1);});
+}
+module.exports={readCapabilities};
+if(require.main===module)observe().catch(error=>{record('fatal-error.json',{message:error.message,stack:error.stack});process.exit(1);});
