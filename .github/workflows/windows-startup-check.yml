@@ -6,6 +6,14 @@ on:
         description: Public release tag to test
         required: true
         default: v0.3.17
+      runner:
+        description: Hosted Windows environment
+        type: choice
+        options:
+          - windows-2025
+          - windows-2022
+        default: windows-2025
+        required: true
       installer_sha256:
         description: Expected installer SHA-256 (required)
         required: true
@@ -14,7 +22,7 @@ permissions:
   contents: read
 jobs:
   startup:
-    runs-on: windows-2022
+    runs-on: ${{ inputs.runner == 'windows-2025' && 'windows-2025' || 'windows-2022' }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
