@@ -1,0 +1,6 @@
+{
+  "schema": 1,
+  "releaseTag": "v0.3.19",
+  "installerSha256": "dd6a68a4a39e503aaa75afaf2167f1ac629f3e2900b0e7a2154f26434c8fea9c",
+  "scope": "Unchanged installer; native Office observations and independent previews after the built-in synthetic test. No repeated GUI checks or component replacements."
+}

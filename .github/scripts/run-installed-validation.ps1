@@ -12,7 +12,10 @@ $functionOut = Join-Path $Out 'installed-functions'
 New-Item -ItemType Directory -Force $functionOut | Out-Null
 try {
   $env:ELECTRON_RUN_AS_NODE = '1'
-  & $exe $script --output $functionOut 2>&1 | Tee-Object -FilePath (Join-Path $Out 'installed-functions-console.log')
+  $nodeArguments = @()
+  if ($env:HELIX_NATIVE_DIAGNOSTIC_OUT) { $nodeArguments += @('--require',(Resolve-Path '.github/scripts/office-native-preload.cjs').Path) }
+  $nodeArguments += @($script,'--output',$functionOut)
+  & $exe @nodeArguments 2>&1 | Tee-Object -FilePath (Join-Path $Out 'installed-functions-console.log')
   $report.functionalExitCode = $LASTEXITCODE
 } finally { [Environment]::SetEnvironmentVariable('ELECTRON_RUN_AS_NODE',$null,'Process') }
 $reports = @(Get-ChildItem -LiteralPath $functionOut -Recurse -File -Filter '验收结果.json')

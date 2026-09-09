@@ -6,7 +6,7 @@ $install = Join-Path $env:RUNNER_TEMP 'Helix 启动测试\安装目录 with spac
 $profile = Join-Path $env:RUNNER_TEMP 'Helix 启动测试\空白用户数据'
 $env:HELIX_USER_DATA_DIR = $profile
 $env:HELIX_DATA_DIR = Join-Path $profile 'workspace'
-foreach ($scriptName in @('observe-office-process.ps1','run-installed-validation.ps1')) {
+foreach ($scriptName in @('observe-office-process.ps1','run-installed-validation.ps1','office-only-diagnostic.ps1')) {
   $parseTokens = $null; $parseErrors = $null
   [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $env:GITHUB_WORKSPACE ('.github/scripts/' + $scriptName)),[ref]$parseTokens,[ref]$parseErrors) | Out-Null
   if ($parseErrors.Count -gt 0) { throw ('Diagnostic script parse error: ' + $scriptName + ' ' + ($parseErrors | Out-String)) }
@@ -88,6 +88,10 @@ if (Test-Path $candidateManifest) {
   if ($LASTEXITCODE -ne 0) { throw 'Isolated candidate broker validation or replacement failed' }
 } else {
   @{variant='original-installed-package';releaseTag=$env:RELEASE_TAG;installerSha256=$actualHash} | ConvertTo-Json | Set-Content (Join-Path $out 'package-variant.json')
+}
+if (Test-Path '.github/scripts/office-only-validation.json') {
+  & .github/scripts/office-only-diagnostic.ps1 -Install $install -Out $out -ReleaseTag $env:RELEASE_TAG -InstallerSha256 $actualHash
+  exit 0
 }
 Write-Host 'Installation completed; testing ordinary desktop entry point.'
 $normal = Start-Process -FilePath $exe -PassThru

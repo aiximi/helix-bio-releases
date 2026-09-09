@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 $report = @{at=(Get-Date).ToUniversalTime().ToString('o');brokerPid=$BrokerPid;sampleSeconds=$Elapsed}
 try {
   $directory = [System.IO.Path]::GetFullPath($Staging)
-  if ($directory -notmatch '\\hx-office-[^\\]+$') { throw 'Observation requires this request synthetic Office staging directory' }
+  if ($directory -notmatch '\\hx-(office|calc)-[^\\]+$') { throw 'Observation requires this request synthetic Office staging directory' }
   $report.staging = $directory
   if (Test-Path -LiteralPath $directory) {
     $items = @(Get-ChildItem -LiteralPath $directory -Recurse -Force -ErrorAction Stop | Select-Object -First 1500)
