@@ -51,6 +51,7 @@ async function endpoint(port,attempts=80) {
         const original=electron.dialog.showErrorBox;
         electron.dialog.showErrorBox=function(title,content){log('showErrorBox',{title,content});return original.apply(this,arguments);};
         electron.app.on('child-process-gone',(_event,details)=>log('child-process-gone',details));
+        electron.app.once('gpu-info-update',()=>{log('gpu-feature-status',electron.app.getGPUFeatureStatus());electron.app.getGPUInfo('basic').then(info=>log('gpu-info',info)).catch(error=>log('gpu-info-error',{message:error.message}));});
         electron.app.on('browser-window-created',(_event,window)=>{
           const wc=window.webContents;log('browser-window-created',{id:wc.id});
           wc.on('render-process-gone',(_event,details)=>log('render-process-gone',details));
