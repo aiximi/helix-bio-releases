@@ -38,7 +38,7 @@ function Capture-UI([string]$Name) {
   $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children,[System.Windows.Automation.Condition]::TrueCondition)
   $items = @()
   foreach ($window in $windows) {
-    if ($window.Current.Name -match 'Helix|Error|错误|启动') {
+    if ($window.Current.Name -match 'Helix|Error|错误|启动|Setup|安装') {
       $texts = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
       $items += @{name=$window.Current.Name;processId=$window.Current.ProcessId;texts=@($texts | ForEach-Object {$_.Current.Name} | Where-Object {$_} | Select-Object -First 300)}
     }
@@ -46,7 +46,13 @@ function Capture-UI([string]$Name) {
   $items | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $out "$Name-ui.json")
 }
 $p = Start-Process -FilePath $installer -ArgumentList "/S /D=$install" -PassThru
-if (-not $p.WaitForExit(300000)) { Capture-UI 'installer-timeout'; Get-CimInstance Win32_Process | Where-Object {$_.Name -match 'helix|setup'} | Select-Object Name,ProcessId,CommandLine | ConvertTo-Json | Set-Content (Join-Path $out 'installer-processes.json'); throw "Installer did not exit within five minutes" }
+if (-not $p.WaitForExit(30000)) {
+  Capture-UI 'installer-progress'
+  $installerText = Get-Content (Join-Path $out 'installer-progress-ui.json') -Raw
+  Write-Host $installerText
+  if ($installerText -match 'requires 64-bit Windows|需要 Windows 10|需要 Windows 11|integrity check has failed|Error launching installer') { throw 'Installer displayed a blocking diagnostic; see installer-progress evidence.' }
+}
+if (-not $p.WaitForExit(270000)) { Capture-UI 'installer-timeout'; Get-CimInstance Win32_Process | Where-Object {$_.Name -match 'helix|setup'} | Select-Object Name,ProcessId,CommandLine | ConvertTo-Json | Set-Content (Join-Path $out 'installer-processes.json'); throw "Installer did not exit within five minutes" }
 $p.Refresh()
 @{exitCode=$p.ExitCode} | ConvertTo-Json | Set-Content (Join-Path $out 'installation.json')
 if ($p.ExitCode -ne 0) { throw "Installer exited $($p.ExitCode)" }
