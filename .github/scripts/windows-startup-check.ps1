@@ -11,29 +11,29 @@ if ($version -notmatch '^\d+\.\d+\.\d+(?:[-.][a-zA-Z0-9]+)*$') { throw 'Invalid 
 if ($env:EXPECTED_SHA256 -notmatch '^[a-fA-F0-9]{64}$') { throw 'Expected SHA-256 required' }
 $installer = Join-Path $env:RUNNER_TEMP 'helix-setup.exe'
 $url = "https://github.com/aiximi/helix-bio-releases/releases/download/$env:RELEASE_TAG/Helix-Bio-$version-Windows-x64-Setup.exe"
-& curl.exe -fL --retry 3 --output $installer $url
+if ($env:GH_TOKEN) {
+  & gh release download $env:RELEASE_TAG --repo aiximi/helix-bio-releases --pattern "Helix-Bio-$version-Windows-x64-Setup.exe" --output $installer --clobber
+} else {
+  & curl.exe -fL --retry 3 --output $installer $url
+}
 if ($LASTEXITCODE -ne 0) { throw 'Installer download failed' }
+[Environment]::SetEnvironmentVariable('GH_TOKEN',$null,'Process')
 $actualHash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($actualHash -ne $env:EXPECTED_SHA256.ToLowerInvariant()) { throw 'Installer hash mismatch' }
 @{tag=$env:RELEASE_TAG;url=$url;sha256=$actualHash;size=(Get-Item $installer).Length;os=(Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,BuildNumber,OSArchitecture);cpu=(Get-CimInstance Win32_Processor | Select-Object Name,Architecture,NumberOfCores);memory=(Get-CimInstance Win32_ComputerSystem | Select-Object TotalPhysicalMemory);installDirectory=$install;nodeVersion=(& node --version)} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $out 'system.json')
-$p = Start-Process -FilePath $installer -ArgumentList "/S /D=$install" -PassThru
-if (-not $p.WaitForExit(300000)) { throw "Installer did not exit within five minutes" }
-$p.Refresh()
-@{exitCode=$p.ExitCode} | ConvertTo-Json | Set-Content (Join-Path $out 'installation.json')
-if ($p.ExitCode -ne 0) { throw "Installer exited $($p.ExitCode)" }
-$exe = Join-Path $install 'Helix Bio.exe'
-if (-not (Test-Path $exe)) { Get-ChildItem $install | Out-String | Set-Content (Join-Path $out 'installed-files.txt'); throw 'Installed normal entry point missing' }
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 function Capture-UI([string]$Name) {
+  try {
   $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
   $image = [System.Drawing.Bitmap]::new($bounds.Width,$bounds.Height)
   $graphics = [System.Drawing.Graphics]::FromImage($image)
   $graphics.CopyFromScreen($bounds.Left,$bounds.Top,0,0,$image.Size)
   $image.Save((Join-Path $out "$Name.png"))
   $graphics.Dispose(); $image.Dispose()
+  } catch { $_.Exception.Message | Set-Content (Join-Path $out "$Name-screenshot-error.txt") }
   $root = [System.Windows.Automation.AutomationElement]::RootElement
   $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children,[System.Windows.Automation.Condition]::TrueCondition)
   $items = @()
@@ -45,14 +45,23 @@ function Capture-UI([string]$Name) {
   }
   $items | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $out "$Name-ui.json")
 }
+$p = Start-Process -FilePath $installer -ArgumentList "/S /D=$install" -PassThru
+if (-not $p.WaitForExit(300000)) { Capture-UI 'installer-timeout'; Get-CimInstance Win32_Process | Where-Object {$_.Name -match 'helix|setup'} | Select-Object Name,ProcessId,CommandLine | ConvertTo-Json | Set-Content (Join-Path $out 'installer-processes.json'); throw "Installer did not exit within five minutes" }
+$p.Refresh()
+@{exitCode=$p.ExitCode} | ConvertTo-Json | Set-Content (Join-Path $out 'installation.json')
+if ($p.ExitCode -ne 0) { throw "Installer exited $($p.ExitCode)" }
+$exe = Join-Path $install 'Helix Bio.exe'
+if (-not (Test-Path $exe)) { Get-ChildItem $install | Out-String | Set-Content (Join-Path $out 'installed-files.txt'); throw 'Installed normal entry point missing' }
 function Stop-InstalledApp {
   Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -and $_.ExecutablePath.StartsWith($install,[System.StringComparison]::OrdinalIgnoreCase)} | ForEach-Object {Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue}
   Start-Sleep -Seconds 2
 }
 Stop-InstalledApp
+Write-Host 'Installation completed; testing ordinary desktop entry point.'
 $normal = Start-Process -FilePath $exe -PassThru
 Start-Sleep -Seconds 25
 Capture-UI 'normal-startup'
+Get-Content (Join-Path $out 'normal-startup-ui.json') | Write-Host
 $processes = @(Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -and $_.ExecutablePath.StartsWith($install,[System.StringComparison]::OrdinalIgnoreCase)} | Select-Object ProcessId,ParentProcessId,ExecutablePath,CommandLine)
 $processes | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $out 'normal-processes.json')
 $health = @()
