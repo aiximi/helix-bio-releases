@@ -17,7 +17,7 @@ try {
 } catch { $report.stagingObservationError = $_.Exception.Message }
 try {
   $all = @(Get-CimInstance Win32_Process)
-  $related = @($all | Where-Object {$_.Name -match '^(Helix Bio\.exe|helix-office-runner\.exe|soffice\.(com|exe|bin))$'})
+  $related = @($all | Where-Object {$_.Name -match '^(Helix Bio\.exe|helix-office-(runner|converter)\.exe|soffice\.(com|exe|bin))$'})
   $ids = @($related.ProcessId)
   $report.processes = @($related | ForEach-Object {
     $detail = Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue
