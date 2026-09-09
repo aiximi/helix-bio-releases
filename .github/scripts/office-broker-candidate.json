@@ -2,7 +2,11 @@
   "schema": 1,
   "releaseTag": "v0.3.18",
   "installerSha256": "51253e3c7d1b4eec47b95c2e492b726b12c43a590cf2ee0d7ca0162f0e838bf2",
-  "assetName": "Helix-Office-Broker-Validation-01.bin",
-  "sha256": "90e8d21daf6fa05997a902acab222de1816e4a3478c95ccf9d4ef2db743abddc",
-  "expectedOriginalSha256": "09fdb925889bb7f462177b86fe0b4a7eebb568346df16d7135d44c31e253e373"
+  "assetName": "Helix-Office-Broker-Validation-03.bin",
+  "sha256": "f4b691dfcce4e3da794f406cb0dae698a06052d3a97d30b969e743cbc1be224d",
+  "expectedOriginalSha256": "09fdb925889bb7f462177b86fe0b4a7eebb568346df16d7135d44c31e253e373",
+  "converter": {
+    "assetName": "Helix-Office-Converter-Validation-03.bin",
+    "sha256": "bb41c4094902272c537172c6c45859e4ec5f40dcc64445c7f6de0c28626343df"
+  }
 }
