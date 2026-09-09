@@ -12,7 +12,7 @@ async function applyCandidate({install,out,releaseTag,installerSha256,manifest,d
   return bytes;
 }}){
   if(manifest.schema!==1||manifest.releaseTag!==releaseTag||manifest.installerSha256!==installerSha256)throw Error('Candidate manifest does not match the installed release');
-  if(!/^v\d+\.\d+\.\d+$/.test(releaseTag)||!/^Helix-Bio-Office-Broker-Candidate-[A-Za-z0-9.-]+\.exe$/.test(manifest.assetName))throw Error('Candidate release or asset name is invalid');
+  if(!/^v\d+\.\d+\.\d+$/.test(releaseTag)||!/^Helix-Office-Broker-Validation-[0-9]{2}\.bin$/.test(manifest.assetName))throw Error('Candidate release or asset name is invalid');
   for(const key of ['sha256','expectedOriginalSha256'])if(!/^[a-f0-9]{64}$/.test(manifest[key]))throw Error('Candidate manifest requires exact SHA-256 values');
   const office=path.join(install,'resources','assets','office');
   const broker=path.join(office,'helix-office-runner.exe');
