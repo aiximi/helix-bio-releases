@@ -75,7 +75,18 @@ async function observe(){
           log('native-process-start',{pid:child.pid,command:String(command)});
           child.stderr?.on('data',chunk=>{if(stderr.length<16384)stderr+=chunk.toString().slice(0,16384-stderr.length);});
           child.on('error',error=>log('native-process-error',{pid:child.pid,command:String(command),message:error.message}));
-          child.on('close',(code,signal)=>log('native-process-exit',{pid:child.pid,command:String(command),code,signal,stderr}));
+          const observationTimers=[];
+          if(String(command).toLowerCase().endsWith('helix-office-runner.exe')&&options?.cwd&&process.env.HELIX_TEST_NATIVE_OBSERVER&&process.env.HELIX_TEST_MODE!=='compatibility'){
+            for(const seconds of [15,45,110])observationTimers.push(setTimeout(()=>{
+              const destination=path.join(process.env.HELIX_TEST_OUT,'office-observation-'+child.pid+'-'+seconds+'.json');
+              const probe=originalSpawn(process.env.HELIX_TEST_POWERSHELL,['-NoLogo','-NoProfile','-NonInteractive','-File',process.env.HELIX_TEST_NATIVE_OBSERVER,'-Out',destination,'-Staging',options.cwd,'-BrokerPid',String(child.pid),'-Elapsed',String(seconds)],{stdio:['ignore','ignore','pipe'],windowsHide:true});
+              let probeError='';probe.stderr?.on('data',chunk=>{if(probeError.length<1024)probeError+=chunk.toString().slice(0,1024-probeError.length);});
+              const timer=setTimeout(()=>probe.kill('SIGKILL'),8000);
+              probe.on('error',error=>log('office-observation-error',{message:error.message}));
+              probe.on('close',code=>{clearTimeout(timer);log('office-observation-completed',{code,seconds,error:probeError});});
+            },seconds*1000));
+          }
+          child.on('close',(code,signal)=>{for(const timer of observationTimers)clearTimeout(timer);log('native-process-exit',{pid:child.pid,command:String(command),code,signal,stderr});});
           return child;
         };
         const original=electron.dialog.showErrorBox;

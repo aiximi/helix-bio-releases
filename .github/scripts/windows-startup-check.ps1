@@ -6,6 +6,9 @@ $install = Join-Path $env:RUNNER_TEMP 'Helix 启动测试\安装目录 with spac
 $profile = Join-Path $env:RUNNER_TEMP 'Helix 启动测试\空白用户数据'
 $env:HELIX_USER_DATA_DIR = $profile
 $env:HELIX_DATA_DIR = Join-Path $profile 'workspace'
+$parseTokens = $null; $parseErrors = $null
+[System.Management.Automation.Language.Parser]::ParseFile((Join-Path $env:GITHUB_WORKSPACE '.github/scripts/observe-office-process.ps1'),[ref]$parseTokens,[ref]$parseErrors) | Out-Null
+if ($parseErrors.Count -gt 0) { throw ('Native observation script parse error: ' + ($parseErrors | Out-String)) }
 $version = $env:RELEASE_TAG -replace '^v',''
 if ($version -notmatch '^\d+\.\d+\.\d+(?:[-.][a-zA-Z0-9]+)*$') { throw 'Invalid release tag' }
 if ($env:EXPECTED_SHA256 -notmatch '^[a-fA-F0-9]{64}$') { throw 'Expected SHA-256 required' }
@@ -106,6 +109,8 @@ foreach ($proc in $processes) {
 }
 $health | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $out 'normal-health.json')
 Stop-InstalledApp
+$env:HELIX_TEST_NATIVE_OBSERVER = (Resolve-Path '.github/scripts/observe-office-process.ps1').Path
+$env:HELIX_TEST_POWERSHELL = (Get-Command pwsh).Source
 $env:HELIX_TEST_EXE = $exe
 $env:HELIX_TEST_OUT = $out
 & node .github/scripts/windows-startup-observer.cjs
