@@ -23,7 +23,7 @@ permissions:
 jobs:
   startup:
     runs-on: ${{ inputs.runner == 'windows-2025' && 'windows-2025' || 'windows-2022' }}
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
