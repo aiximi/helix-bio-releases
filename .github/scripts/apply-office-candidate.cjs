@@ -76,7 +76,7 @@ async function applyCandidate({install,out,releaseTag,installerSha256,manifest,e
         finally{await fs.rm(stage,{recursive:true,force:true}).catch(()=>{});}
         results.push({phase,brokerSha256:phase==='before'?sha(beforeBroker):sha(candidate),probeSha256:sha(probe),...result});
         await fs.writeFile(path.join(out,'office-access-preflight.json'),JSON.stringify(results,null,2));
-        if(result.exitCode!==0||result.timedOut||!result.stdout?.includes('"appContainer":true'))throw Error('AppContainer access preflight did not complete: '+phase);
+        if(result.exitCode!==0||result.timedOut||!((result.stdout||'')+(result.stderr||'')).includes('"appContainer":true'))throw Error('AppContainer access preflight did not complete: '+phase);
       }
     }finally{
       await fs.writeFile(broker,original);
