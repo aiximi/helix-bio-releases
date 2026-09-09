@@ -29,7 +29,7 @@ async function endpoint(port,attempts=80) {
 (async()=>{
   const stdout=fs.openSync(path.join(out,'observed-stdout.log'),'w');
   const stderr=fs.openSync(path.join(out,'observed-stderr.log'),'w');
-  const child=spawn(exe,['--inspect-brk=9333','--remote-debugging-port=9222','--enable-logging','--log-file='+path.join(out,'chromium.log')],{stdio:['ignore',stdout,stderr],env:process.env});
+  const child=spawn(exe,[...(process.env.HELIX_TEST_MODE==='compatibility'?['--helix-software-rendering']:[]),'--inspect-brk=9333','--remote-debugging-port=9222','--enable-logging','--log-file='+path.join(out,'chromium.log')],{stdio:['ignore',stdout,stderr],env:process.env});
   child.on('exit',(code,signal)=>{events.push({at:new Date().toISOString(),method:'app-process-exit',code,signal});record('observer-events.json',events);});
   let main;
   try {
@@ -47,13 +47,13 @@ async function endpoint(port,attempts=80) {
         const electron=require('electron');const fs=require('node:fs');const path=require('node:path');
         const target=path.join(process.env.HELIX_TEST_OUT,'main-lifecycle.jsonl');
         const log=(event,data={})=>fs.appendFileSync(target,JSON.stringify({at:new Date().toISOString(),event,...data})+'\\n');
-        log('observer-installed',{versions:process.versions});
+        log('observer-installed',{versions:process.versions,softwareRenderingRequested:process.argv.includes('--helix-software-rendering')});
         const original=electron.dialog.showErrorBox;
         electron.dialog.showErrorBox=function(title,content){log('showErrorBox',{title,content});return original.apply(this,arguments);};
         electron.app.on('child-process-gone',(_event,details)=>log('child-process-gone',details));
         electron.app.once('gpu-info-update',()=>{log('gpu-feature-status',electron.app.getGPUFeatureStatus());electron.app.getGPUInfo('basic').then(info=>log('gpu-info',info)).catch(error=>log('gpu-info-error',{message:error.message}));});
         electron.app.on('browser-window-created',(_event,window)=>{
-          const wc=window.webContents;log('browser-window-created',{id:wc.id});
+          const wc=window.webContents;log('browser-window-created',{id:wc.id,preferences:wc.getLastWebPreferences()});
           wc.on('render-process-gone',(_event,details)=>log('render-process-gone',details));
           wc.on('did-fail-load',(_event,errorCode,errorDescription,validatedURL,isMainFrame)=>log('did-fail-load',{errorCode,errorDescription,validatedURL,isMainFrame}));
           wc.on('did-fail-provisional-load',(_event,errorCode,errorDescription,validatedURL,isMainFrame)=>log('did-fail-provisional-load',{errorCode,errorDescription,validatedURL,isMainFrame}));
